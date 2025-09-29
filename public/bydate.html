@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Asterix Staff Date</title>
+  <link rel="icon" type="asterix.png" href="asterix.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #f3e5f5, #e1f5fe);
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    .card-stat {
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      color: #fff;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .center-img {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center; /* optional for extra safety */
+    }
+    .card-stat i {
+      font-size: 2rem;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .bg1 { background: #2196f3; }
+    .bg2 { background: #00bcd4; }
+    .bg3 { background: #9c27b0; }
+    .bg4 { background: #ff9800; }
+    table { background: white; border-radius: 10px; overflow: hidden; }
+    th { background: #f1f3f4; cursor: pointer; user-select: none; }
+    th.sort-asc i::after { content: "▲"; font-size: 0.8rem; margin-left: 5px; }
+    th.sort-desc i::after { content: "▼"; font-size: 0.8rem; margin-left: 5px; }
+    th i { margin-left: 5px; font-size: 0.9rem; opacity: 0.7; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1 class="mb-4 text-center"><i class="bi bi-speedometer2"></i> Asterix Dashboard</h1>
+    <img src="asterix.png" class="center-img mb-4">
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card-stat bg1">
+        <i class="bi bi-people-fill"></i>
+        <h2 id="statAdmins">0</h2>
+        <p>Total Admins</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-stat bg2">
+        <i class="bi bi-clock-history"></i>
+        <h2 id="statMinutes">0</h2>
+        <p>Total Minutes</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-stat bg3">
+        <i class="bi bi-bar-chart-line-fill"></i>
+        <h2 id="statAvg">0</h2>
+        <p>Average Minutes</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-stat bg4">
+        <i class="bi bi-trophy-fill"></i>
+        <h2 id="statTop">-</h2>
+        <p>Most Duty</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date Range Filters -->
+  <div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h4 class="mb-0"><i class="bi bi-filter-circle"></i> Select Date Range</h4>
+      <a href="index.html" class="btn btn-sm btn-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
+    <div class="card-body d-flex gap-2 flex-wrap">
+      <input type="date" id="fromDate" class="form-control" style="max-width:200px">
+      <input type="date" id="toDate" class="form-control" style="max-width:200px">
+      <button class="btn btn-primary" onclick="loadByRange()"><i class="bi bi-search"></i> Load</button>
+    </div>
+  </div>
+
+  <!-- Admins Table -->
+  <div class="card shadow">
+    <div class="card-header">
+      <h4 class="mb-0"><i class="bi bi-table"></i> Admins Duty Overview</h4>
+    </div>
+    <div class="card-body">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th onclick="sortTable('admin')">Admin <i class="bi bi-arrow-down-up"></i></th>
+            <th>License</th>
+            <th onclick="sortTable('minutes')">Total Minutes (Range) <i class="bi bi-arrow-down-up"></i></th>
+            <th onclick="sortTable('lastDuty')">Last Duty <i class="bi bi-arrow-down-up"></i></th>
+          </tr>
+        </thead>
+        <tbody id="adminsTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminsData = [];
+let sortState = { column: 'minutes', order: 'desc' };
+
+async function loadByRange() {
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  if (!from || !to) return;
+
+  const res = await fetch(`/admins/range?from=${from}&to=${to}`);
+  adminsData = await res.json();
+
+  renderTable();
+  updateStats();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('adminsTable');
+  tbody.innerHTML = '';
+
+  document.querySelectorAll("th").forEach(th => th.classList.remove("sort-asc","sort-desc"));
+
+  const sorted = [...adminsData].sort((a,b) => {
+    let valA, valB;
+    if (sortState.column === 'admin') {
+      valA = a.admin.toLowerCase();
+      valB = b.admin.toLowerCase();
+    } else if (sortState.column === 'minutes') {
+      valA = a.totalMinutes;
+      valB = b.totalMinutes;
+    } else if (sortState.column === 'lastDuty') {
+      valA = a.lastDuty ? new Date(a.lastDuty) : new Date(0);
+      valB = b.lastDuty ? new Date(b.lastDuty) : new Date(0);
+    }
+    if (valA < valB) return sortState.order === 'asc' ? -1 : 1;
+    if (valA > valB) return sortState.order === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  if (sortState.column === 'admin') document.querySelector("th[onclick*='admin']").classList.add(`sort-${sortState.order}`);
+  else if (sortState.column === 'minutes') document.querySelector("th[onclick*='minutes']").classList.add(`sort-${sortState.order}`);
+  else if (sortState.column === 'lastDuty') document.querySelector("th[onclick*='lastDuty']").classList.add(`sort-${sortState.order}`);
+
+  sorted.forEach((a,i) => {
+    let lastDuty = "-";
+    if (a.lastDuty) {
+      const d = new Date(a.lastDuty);
+      lastDuty = d.toLocaleString("en-GB", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+      });
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td><i class="bi bi-person-badge"></i> ${a.admin}</td>
+      <td>${a.license}</td>
+      <td><i class="bi bi-hourglass-split"></i> ${a.totalMinutes}</td>
+      <td><i class="bi bi-clock"></i> ${lastDuty}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function sortTable(column) {
+  if (sortState.column === column) {
+    sortState.order = sortState.order === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortState.column = column;
+    sortState.order = 'asc';
+  }
+  renderTable();
+}
+
+function updateStats() {
+  document.getElementById('statAdmins').innerText = adminsData.length;
+  const total = adminsData.reduce((sum,a) => sum + a.totalMinutes, 0);
+  document.getElementById('statMinutes').innerText = total;
+  document.getElementById('statAvg').innerText = adminsData.length ? Math.round(total / adminsData.length) : 0;
+  if (adminsData.length) {
+    const topAdmin = adminsData.reduce((max, a) => a.totalMinutes > max.totalMinutes ? a : max, adminsData[0]);
+    document.getElementById('statTop').innerText = topAdmin.admin;
+  } else {
+    document.getElementById('statTop').innerText = '-';
+  }
+}
+
+// Auto-fill today
+window.addEventListener("DOMContentLoaded", () => {
+  const today = new Date().toISOString().split("T")[0];
+  document.getElementById("fromDate").value = today;
+  document.getElementById("toDate").value = today;
+  loadByRange();
+});
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

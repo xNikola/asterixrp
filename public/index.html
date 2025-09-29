@@ -1,0 +1,303 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Asterix Staff</title>
+  <link rel="icon" type="asterix.png" href="asterix.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #e0f7fa, #fce4ec);
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    .card-stat {
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      color: #fff;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .center-img {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center; /* optional for extra safety */
+    }
+    .card-stat i {
+      font-size: 2rem;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .bg1 { background: #2196f3; }
+    .bg2 { background: #00bcd4; }
+    .bg3 { background: #9c27b0; }
+    .bg4 { background: #ff9800; }
+    table { background: white; border-radius: 10px; overflow: hidden; }
+    th { background: #f1f3f4; cursor: pointer; user-select: none; }
+    th.sort-asc i::after { content: "▲"; font-size: 0.8rem; margin-left: 5px; }
+    th.sort-desc i::after { content: "▼"; font-size: 0.8rem; margin-left: 5px; }
+    th i { margin-left: 5px; font-size: 0.9rem; opacity: 0.7; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1 class="mb-4 text-center"><i class="bi bi-speedometer2"></i> Asterix Dashboard</h1>
+    <img src="asterix.png" class="center-img mb-4">
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card-stat bg1">
+        <i class="bi bi-people-fill"></i>
+        <h2 id="statAdmins">0</h2>
+        <p>Total Admins</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-stat bg2">
+        <i class="bi bi-clock-history"></i>
+        <h2 id="statMinutes">0</h2>
+        <p>Total Minutes</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-stat bg3">
+        <i class="bi bi-bar-chart-line-fill"></i>
+        <h2 id="statAvg">0</h2>
+        <p>Average Minutes</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-stat bg4">
+        <i class="bi bi-trophy-fill"></i>
+        <h2 id="statTop">-</h2>
+        <p>Most Duty</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admins Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h4 class="mb-0"><i class="bi bi-table"></i> Admins Overview</h4>
+      <div>
+        <button class="btn btn-sm btn-primary" onclick="loadStats(); alert('Cache loaded successfully!')"><i class="bi bi-arrow-repeat"></i> Load Cache</button>
+        <button class="btn btn-sm btn-warning" onclick="rescan()"><i class="bi bi-search"></i> Rescan</button>
+        <a href="bydate.html" class="btn btn-sm btn-success"><i class="bi bi-calendar-date"></i> By Date</a>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div id="rescanProgress" class="progress mb-3 d-none">
+        <div id="rescanProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+             role="progressbar" style="width: 0%">0%</div>
+      </div>
+
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th onclick="sortTable('admin')" data-bs-toggle="tooltip" title="Click to sort by name">
+              Admin <i class="bi bi-arrow-down-up"></i>
+            </th>
+            <th>License</th>
+            <th onclick="sortTable('minutes')" data-bs-toggle="tooltip" title="Click to sort by minutes">
+              Total Minutes <i class="bi bi-arrow-down-up"></i>
+            </th>
+            <th onclick="sortTable('lastDuty')" data-bs-toggle="tooltip" title="Click to sort by last duty">
+              Last Duty <i class="bi bi-arrow-down-up"></i>
+            </th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminsTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Blacklisted Admins Table -->
+  <div class="card shadow mb-4">
+    <div class="card-header">
+      <h4 class="mb-0"><i class="bi bi-slash-circle"></i> Blacklisted Admins</h4>
+    </div>
+    <div class="card-body">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Admin</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="blacklistTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminsData = [];
+let sortState = { column: 'minutes', order: 'desc' };
+
+function sortTable(column) {
+  if (sortState.column === column) {
+    sortState.order = sortState.order === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortState.column = column;
+    sortState.order = 'asc';
+  }
+  renderAdmins();
+}
+
+function renderAdmins() {
+  const tbody = document.getElementById('adminsTable');
+  tbody.innerHTML = '';
+
+  document.querySelectorAll("th").forEach(th => th.classList.remove("sort-asc","sort-desc"));
+
+  const sorted = [...adminsData].sort((a,b) => {
+    let valA, valB;
+    if (sortState.column === 'admin') {
+      valA = a.admin.toLowerCase();
+      valB = b.admin.toLowerCase();
+    } else if (sortState.column === 'minutes') {
+      valA = a.totalMinutes;
+      valB = b.totalMinutes;
+    } else if (sortState.column === 'lastDuty') {
+      valA = a.lastDuty ? new Date(a.lastDuty) : new Date(0);
+      valB = b.lastDuty ? new Date(b.lastDuty) : new Date(0);
+    }
+    if (valA < valB) return sortState.order === 'asc' ? -1 : 1;
+    if (valA > valB) return sortState.order === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  if (sortState.column === 'admin') document.querySelector("th[onclick*='admin']").classList.add(`sort-${sortState.order}`);
+  else if (sortState.column === 'minutes') document.querySelector("th[onclick*='minutes']").classList.add(`sort-${sortState.order}`);
+  else if (sortState.column === 'lastDuty') document.querySelector("th[onclick*='lastDuty']").classList.add(`sort-${sortState.order}`);
+
+  sorted.forEach((a,i) => {
+    let lastDuty = "-";
+    if (a.lastDuty) {
+      const d = new Date(a.lastDuty);
+      lastDuty = d.toLocaleString("en-GB", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+      });
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td><i class="bi bi-person-badge"></i> ${a.admin}</td>
+      <td>${a.license}</td>
+      <td><i class="bi bi-hourglass-split"></i> ${a.totalMinutes}</td>
+      <td><i class="bi bi-clock"></i> ${lastDuty}</td>
+      <td>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-three-dots-vertical"></i>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="promptAddTime('${a.admin}')"><i class="bi bi-plus-circle"></i> Add Time</a></li>
+            <li><a class="dropdown-item" href="#" onclick="promptRemoveTime('${a.admin}')"><i class="bi bi-dash-circle"></i> Remove Time</a></li>
+            <li><a class="dropdown-item" href="#" onclick="removeAdmin('${a.admin}')"><i class="bi bi-x-circle"></i> Remove Admin</a></li>
+            <li><a class="dropdown-item text-warning" href="#" onclick="blacklistAdmin('${a.admin}')"><i class="bi bi-slash-circle"></i> Blacklist</a></li>
+          </ul>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadStats() {
+  const res = await fetch('/admins');
+  adminsData = await res.json();
+
+  // Stats
+  document.getElementById('statAdmins').innerText = adminsData.length;
+  const total = adminsData.reduce((sum,a) => sum + a.totalMinutes, 0);
+  document.getElementById('statMinutes').innerText = total;
+  document.getElementById('statAvg').innerText = adminsData.length ? Math.round(total / adminsData.length) : 0;
+
+  // Top Performer
+  if (adminsData.length) {
+    const topAdmin = adminsData.reduce((max, a) => a.totalMinutes > max.totalMinutes ? a : max, adminsData[0]);
+    document.getElementById('statTop').innerText = topAdmin.admin;
+  } else document.getElementById('statTop').innerText = '-';
+
+  renderAdmins();
+  loadBlacklistUI();
+}
+
+async function rescan() {
+  const progressDiv = document.getElementById("rescanProgress");
+  const progressBar = document.getElementById("rescanProgressBar");
+  progressDiv.classList.remove("d-none");
+  progressBar.style.width = "0%";
+  progressBar.innerText = "0%";
+
+  let progress = 0;
+  const interval = setInterval(() => {
+    if (progress < 90) {
+      progress += 10;
+      progressBar.style.width = progress + "%";
+      progressBar.innerText = progress + "%";
+    }
+  }, 500);
+
+  const res = await fetch('/rescan', { method: 'POST' });
+  await res.json();
+
+  clearInterval(interval);
+  progressBar.style.width = "100%";
+  progressBar.innerText = "Done";
+
+  setTimeout(() => progressDiv.classList.add("d-none"), 1500);
+  setTimeout(loadStats, 1000);
+}
+
+async function promptAddTime(admin) {
+  const minutes = prompt(`Enter minutes to add to ${admin}:`);
+  if (!minutes || isNaN(minutes)) return;
+  await fetch("/admins/add-time", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin, minutes: parseInt(minutes, 10) }) });
+  alert(`Added ${minutes} minutes to ${admin}`);
+  loadStats();
+}
+
+async function promptRemoveTime(admin) {
+  const minutes = prompt(`Enter minutes to remove from ${admin}:`);
+  if (!minutes || isNaN(minutes)) return;
+  await fetch("/admins/remove-time", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin, minutes: parseInt(minutes, 10) }) });
+  alert(`Removed ${minutes} minutes from ${admin}`);
+  loadStats();
+}
+
+async function removeAdmin(admin) { await fetch("/admins/remove-admin", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({admin}) }); alert(`Removed admin ${admin}`); loadStats(); }
+async function blacklistAdmin(admin) { await fetch("/admins/blacklist", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({admin}) }); alert(`Blacklisted admin ${admin}`); loadStats(); }
+async function unblacklistAdmin(admin) { await fetch("/admins/unblacklist", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({admin}) }); alert(`Unblacklisted admin ${admin}`); loadStats(); }
+
+async function loadBlacklistUI() {
+  const res = await fetch("/admins/blacklist");
+  const list = await res.json();
+  const tbody = document.getElementById("blacklistTable");
+  tbody.innerHTML = "";
+  list.forEach((a,i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i+1}</td><td><i class="bi bi-person-x"></i> ${a}</td><td><button class="btn btn-sm btn-success" onclick="unblacklistAdmin('${a}')"><i class="bi bi-check-circle"></i> Unblacklist</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// Init
+loadStats();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
